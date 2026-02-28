@@ -76,7 +76,7 @@ def _make_openai_providers():
 
         @property
         def model_name(self) -> str:
-            return os.environ.get("OPENAI_VLM_MODEL", "gpt-4o")
+            return os.environ.get("OPENAI_VLM_MODEL", "gpt-5.2")
 
         def is_available(self) -> bool:
             return True
@@ -106,12 +106,17 @@ def _make_openai_providers():
             content.append({"type": "text", "text": prompt})
             messages.append({"role": "user", "content": content})
 
+            model = self.model_name
             kwargs = {
-                "model": self.model_name,
+                "model": model,
                 "messages": messages,
                 "temperature": temperature,
-                "max_tokens": max_tokens,
             }
+            # Newer models (gpt-5.x, o-series) use max_completion_tokens
+            if any(model.startswith(p) for p in ("gpt-5", "o1", "o3", "o4")):
+                kwargs["max_completion_tokens"] = max_tokens
+            else:
+                kwargs["max_tokens"] = max_tokens
             if response_format == "json":
                 kwargs["response_format"] = {"type": "json_object"}
 
@@ -127,7 +132,7 @@ def _make_openai_providers():
 
         @property
         def model_name(self) -> str:
-            return os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
+            return os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-1.5")
 
         def is_available(self) -> bool:
             return True
@@ -141,29 +146,55 @@ def _make_openai_providers():
             height: int = 1024,
             seed: Optional[int] = None,
         ) -> PILImage.Image:
-            # Map dimensions to DALL-E 3 supported sizes
-            ratio = width / height
-            if ratio > 1.3:
-                size = "1792x1024"
-            elif ratio < 0.77:
-                size = "1024x1792"
-            else:
-                size = "1024x1024"
-
             full_prompt = prompt
             if negative_prompt:
                 full_prompt += f"\n\nAvoid: {negative_prompt}"
 
-            resp = await client.images.generate(
-                model=self.model_name,
-                prompt=full_prompt,
-                n=1,
-                size=size,
-                response_format="b64_json",
-            )
+            model = self.model_name
+            kwargs = {
+                "model": model,
+                "prompt": full_prompt,
+                "n": 1,
+            }
 
-            b64_data = resp.data[0].b64_json
-            image_bytes = base64.b64decode(b64_data)
+            if "gpt-image" in model:
+                # gpt-image-1 / gpt-image-1.5: 1024x1024, 1024x1536, 1536x1024, auto
+                kwargs["quality"] = "high"
+                ratio = width / height
+                if ratio > 1.2:
+                    kwargs["size"] = "1536x1024"
+                elif ratio < 0.83:
+                    kwargs["size"] = "1024x1536"
+                else:
+                    kwargs["size"] = "1024x1024"
+            else:
+                # DALL-E 3: limited sizes
+                ratio = width / height
+                if ratio > 1.3:
+                    kwargs["size"] = "1792x1024"
+                elif ratio < 0.77:
+                    kwargs["size"] = "1024x1792"
+                else:
+                    kwargs["size"] = "1024x1024"
+
+            # gpt-image models return b64_json by default
+            if "gpt-image" not in model:
+                kwargs["response_format"] = "b64_json"
+
+            resp = await client.images.generate(**kwargs)
+
+            # Handle both b64_json and url responses
+            data = resp.data[0]
+            if hasattr(data, "b64_json") and data.b64_json:
+                image_bytes = base64.b64decode(data.b64_json)
+            elif hasattr(data, "url") and data.url:
+                import httpx
+                async with httpx.AsyncClient() as http:
+                    r = await http.get(data.url)
+                    image_bytes = r.content
+            else:
+                raise ValueError("No image data in response")
+
             return PILImage.open(BytesIO(image_bytes))
 
     return OpenAIVLM(), OpenAIImageGen()
@@ -178,8 +209,8 @@ def _get_provider_info(provider: str) -> dict:
         }
     elif provider == "openai":
         return {
-            "vlm_model": os.environ.get("OPENAI_VLM_MODEL", "gpt-4o"),
-            "image_model": os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3"),
+            "vlm_model": os.environ.get("OPENAI_VLM_MODEL", "gpt-5.2"),
+            "image_model": os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-1.5"),
         }
     elif provider == "openrouter":
         return {
