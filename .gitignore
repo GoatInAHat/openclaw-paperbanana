@@ -1,0 +1,5 @@
+# GSD autopilot (transient files)
+.planning/autopilot.sh
+.planning/autopilot.lock
+.planning/logs/
+.planning/checkpoints/
