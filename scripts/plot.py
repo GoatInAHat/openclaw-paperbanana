@@ -19,17 +19,7 @@ from pathlib import Path
 
 def detect_provider(explicit: str | None = None) -> dict:
     """Auto-detect provider from env vars."""
-    if explicit == "openai" or (explicit is None and os.environ.get("OPENAI_API_KEY")):
-        if not os.environ.get("OPENAI_API_KEY"):
-            print("ERROR: --provider openai requires OPENAI_API_KEY", file=sys.stderr)
-            sys.exit(1)
-        return {
-            "vlm_provider": "openai",
-            "vlm_model": os.environ.get("OPENAI_VLM_MODEL", "gpt-5.2"),
-            "image_provider": "openai_imagen",
-            "image_model": os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-1.5"),
-        }
-    elif explicit == "gemini" or (explicit is None and os.environ.get("GOOGLE_API_KEY")):
+    if explicit == "gemini" or (explicit is None and os.environ.get("GOOGLE_API_KEY")):
         if not os.environ.get("GOOGLE_API_KEY"):
             print("ERROR: --provider gemini requires GOOGLE_API_KEY", file=sys.stderr)
             sys.exit(1)
@@ -37,11 +27,21 @@ def detect_provider(explicit: str | None = None) -> dict:
             "vlm_provider": "gemini",
             "vlm_model": os.environ.get("GEMINI_VLM_MODEL", "gemini-2.0-flash"),
             "image_provider": "google_imagen",
-            "image_model": os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"),
+            "image_model": os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"),
+        }
+    elif explicit == "openrouter" or (explicit is None and os.environ.get("OPENROUTER_API_KEY")):
+        if not os.environ.get("OPENROUTER_API_KEY"):
+            print("ERROR: --provider openrouter requires OPENROUTER_API_KEY", file=sys.stderr)
+            sys.exit(1)
+        return {
+            "vlm_provider": "openrouter",
+            "vlm_model": os.environ.get("OPENROUTER_VLM_MODEL", "google/gemini-2.0-flash-001"),
+            "image_provider": "openrouter_imagen",
+            "image_model": os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.0-flash-001"),
         }
     else:
         print("ERROR: No API key found.", file=sys.stderr)
-        print("Set OPENAI_API_KEY or GOOGLE_API_KEY in skills.entries.paperbanana.env", file=sys.stderr)
+        print("Set GOOGLE_API_KEY or OPENROUTER_API_KEY in skills.entries.paperbanana.env", file=sys.stderr)
         sys.exit(1)
 
 
@@ -120,7 +120,7 @@ def main():
     parser.add_argument("--aspect", help="Aspect ratio")
     parser.add_argument("--no-optimize", action="store_true", help="Disable input optimization")
     parser.add_argument("--format", "-f", default="png", choices=["png", "jpeg", "webp"])
-    parser.add_argument("--provider", choices=["openai", "gemini"])
+    parser.add_argument("--provider", choices=["gemini", "openrouter"])
 
     args = parser.parse_args()
 

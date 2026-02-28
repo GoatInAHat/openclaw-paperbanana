@@ -17,19 +17,19 @@ from pathlib import Path
 
 def detect_provider(explicit: str | None = None) -> dict:
     """Auto-detect provider from env vars."""
-    if explicit == "openai" or (explicit is None and os.environ.get("OPENAI_API_KEY")):
-        return {
-            "vlm_provider": "openai",
-            "vlm_model": os.environ.get("OPENAI_VLM_MODEL", "gpt-5.2"),
-        }
-    elif explicit == "gemini" or (explicit is None and os.environ.get("GOOGLE_API_KEY")):
+    if explicit == "gemini" or (explicit is None and os.environ.get("GOOGLE_API_KEY")):
         return {
             "vlm_provider": "gemini",
             "vlm_model": os.environ.get("GEMINI_VLM_MODEL", "gemini-2.0-flash"),
         }
+    elif explicit == "openrouter" or (explicit is None and os.environ.get("OPENROUTER_API_KEY")):
+        return {
+            "vlm_provider": "openrouter",
+            "vlm_model": os.environ.get("OPENROUTER_VLM_MODEL", "google/gemini-2.0-flash-001"),
+        }
     else:
         print("ERROR: No API key found for evaluation.", file=sys.stderr)
-        print("Set OPENAI_API_KEY or GOOGLE_API_KEY", file=sys.stderr)
+        print("Set GOOGLE_API_KEY or OPENROUTER_API_KEY", file=sys.stderr)
         sys.exit(1)
 
 
@@ -85,7 +85,7 @@ def main():
     parser.add_argument("--context", help="Source methodology text (inline)")
     parser.add_argument("--context-file", help="Path to source context text file")
     parser.add_argument("--caption", "-c", required=True, help="Figure caption")
-    parser.add_argument("--provider", choices=["openai", "gemini"])
+    parser.add_argument("--provider", choices=["gemini", "openrouter"])
 
     args = parser.parse_args()
 

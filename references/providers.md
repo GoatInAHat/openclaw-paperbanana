@@ -4,35 +4,34 @@
 
 | Component | Provider | Model | Cost | Env Var |
 |-----------|----------|-------|------|---------|
-| VLM (planning, critique) | OpenAI | gpt-5.2 | Paid | `OPENAI_API_KEY` |
-| Image Generation | OpenAI | gpt-image-1.5 | Paid | `OPENAI_API_KEY` |
 | VLM (planning, critique) | Google Gemini | gemini-2.0-flash | Free | `GOOGLE_API_KEY` |
-| Image Generation | Google Gemini | gemini-3-pro-image-preview | Free | `GOOGLE_API_KEY` |
-| VLM + Image | OpenRouter | Any supported | Varies | `OPENROUTER_API_KEY` |
-| VLM + Image | Azure OpenAI / Foundry | Same as OpenAI | Paid | `OPENAI_BASE_URL` |
+| Image Generation | Google Gemini | gemini-2.0-flash-preview-image-generation | Free | `GOOGLE_API_KEY` |
+| VLM (planning, critique) | OpenRouter | Any model (e.g. gpt-5.2) | Paid | `OPENROUTER_API_KEY` |
+| Image Generation | OpenRouter | Any model | Paid | `OPENROUTER_API_KEY` |
+
+> **Note:** Direct OpenAI provider is not available. To use OpenAI models (GPT-5.2, etc.),
+> route through OpenRouter with `OPENROUTER_API_KEY`.
 
 ## Auto-Detection Priority
 
 The scripts check environment variables in this order:
-1. `OPENAI_API_KEY` → uses OpenAI (highest quality)
-2. `GOOGLE_API_KEY` → uses Gemini (free tier, good quality)
+1. `GOOGLE_API_KEY` → uses Gemini (free tier, recommended)
+2. `OPENROUTER_API_KEY` → uses OpenRouter (flexible, paid)
 3. Neither → error with setup instructions
-
-Azure OpenAI is auto-detected when `OPENAI_BASE_URL` is set to an Azure endpoint.
 
 ## Provider Comparison
 
-| Aspect | OpenAI | Gemini (Free) |
-|--------|--------|---------------|
-| **Quality** | Highest (gpt-5.2 + gpt-image-1.5) | Good (gemini-2.0-flash + imagen-3) |
-| **Cost** | ~$0.10-0.50 per diagram | Free |
-| **Speed** | Fast (~30s per iteration) | Moderate (~45s per iteration) |
-| **Rate Limits** | High (tier-dependent) | 15 RPM (free tier) |
-| **Best For** | Final publication figures | Drafts, iteration, low-budget |
+| Aspect | Gemini (Free) | OpenRouter |
+|--------|---------------|------------|
+| **Quality** | Good (gemini-2.0-flash) | Varies by model |
+| **Cost** | Free | Pay-per-use |
+| **Speed** | Moderate (~45s per iteration) | Model-dependent |
+| **Rate Limits** | 15 RPM (free tier) | Tier-dependent |
+| **Best For** | Drafts, iteration, default | Specific model needs |
 
 ## Configuration Examples
 
-### Gemini Only (Free)
+### Gemini Only (Free — Recommended)
 ```json5
 // ~/.openclaw/openclaw.json
 {
@@ -48,14 +47,14 @@ Azure OpenAI is auto-detected when `OPENAI_BASE_URL` is set to an Azure endpoint
 }
 ```
 
-### OpenAI Only (Paid, Best Quality)
+### OpenRouter (Access to Any Model)
 ```json5
 {
   skills: {
     entries: {
       "paperbanana": {
         env: {
-          OPENAI_API_KEY: "sk-..."
+          OPENROUTER_API_KEY: "sk-or-..."
         }
       }
     }
@@ -63,15 +62,15 @@ Azure OpenAI is auto-detected when `OPENAI_BASE_URL` is set to an Azure endpoint
 }
 ```
 
-### Both (OpenAI Primary, Gemini Fallback)
+### Both (Gemini Primary, OpenRouter Fallback)
 ```json5
 {
   skills: {
     entries: {
       "paperbanana": {
         env: {
-          OPENAI_API_KEY: "sk-...",
-          GOOGLE_API_KEY: "AIzaSy..."
+          GOOGLE_API_KEY: "AIzaSy...",
+          OPENROUTER_API_KEY: "sk-or-..."
         }
       }
     }
@@ -79,20 +78,15 @@ Azure OpenAI is auto-detected when `OPENAI_BASE_URL` is set to an Azure endpoint
 }
 ```
 
-### Azure OpenAI / Foundry
-```json5
-{
-  skills: {
-    entries: {
-      "paperbanana": {
-        env: {
-          OPENAI_API_KEY: "your-azure-key",
-          OPENAI_BASE_URL: "https://your-resource.openai.azure.com/openai/v1"
-        }
-      }
-    }
-  }
-}
+### Model Override via Environment
+```bash
+# Override default Gemini models
+GEMINI_VLM_MODEL=gemini-2.5-pro
+GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+
+# Override default OpenRouter models
+OPENROUTER_VLM_MODEL=openai/gpt-5.2
+OPENROUTER_IMAGE_MODEL=openai/gpt-image-1.5
 ```
 
 ## Getting a Gemini API Key (Free)
