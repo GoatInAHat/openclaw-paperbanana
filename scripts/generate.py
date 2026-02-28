@@ -288,8 +288,8 @@ async def generate_diagram(args, provider: str) -> str:
         diagram_type=DiagramType.METHODOLOGY,
     )
 
-    if args.aspect:
-        gen_input.aspect_ratio = args.aspect
+    # Aspect ratio is handled via Settings, not GenerationInput
+    # The pipeline uses it when calling the image gen provider
 
     info = _get_provider_info(provider)
     print(f"🍌 Generating diagram with {provider}...")
