@@ -1,83 +1,246 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["paperbanana[all-providers]>=0.1.2"]
+# dependencies = ["paperbanana[all-providers]>=0.1.2", "openai>=1.0"]
 # ///
 """
 PaperBanana diagram generator for OpenClaw.
 Wraps the paperbanana Python API to generate publication-quality academic diagrams.
 Outputs MEDIA: lines for OpenClaw auto-attachment.
+
+Supports three providers:
+  - gemini:     Free tier via GOOGLE_API_KEY
+  - openai:     Paid via OPENAI_API_KEY (gpt-4o + dall-e-3)
+  - openrouter: Paid via OPENROUTER_API_KEY (any model)
 """
 
 import argparse
 import asyncio
+import base64
 import os
 import sys
 import time
+from io import BytesIO
 from pathlib import Path
+from typing import Optional
 
 
-def detect_provider(explicit: str | None = None) -> dict:
-    """Auto-detect provider from env vars, or use explicit override.
-
-    Available providers:
-      - gemini: Uses GOOGLE_API_KEY (free tier)
-      - openrouter: Uses OPENROUTER_API_KEY (access to OpenAI/Claude/etc.)
-    """
-    if explicit == "gemini" or (explicit is None and os.environ.get("GOOGLE_API_KEY")):
-        if not os.environ.get("GOOGLE_API_KEY"):
-            print("ERROR: --provider gemini requires GOOGLE_API_KEY", file=sys.stderr)
+def detect_provider(explicit: str | None = None) -> str:
+    """Auto-detect provider from env vars, or use explicit override. Returns provider name."""
+    if explicit:
+        key_map = {
+            "gemini": "GOOGLE_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+        }
+        key = key_map.get(explicit)
+        if key and not os.environ.get(key):
+            print(f"ERROR: --provider {explicit} requires {key}", file=sys.stderr)
             sys.exit(1)
+        return explicit
+
+    # Auto-detect priority: gemini (free) > openai > openrouter
+    if os.environ.get("GOOGLE_API_KEY"):
+        return "gemini"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    if os.environ.get("OPENROUTER_API_KEY"):
+        return "openrouter"
+
+    print("ERROR: No API key found.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Set one of these in ~/.openclaw/openclaw.json → skills.entries.paperbanana.env:", file=sys.stderr)
+    print("  GOOGLE_API_KEY=AIza...     (free, recommended)", file=sys.stderr)
+    print("  OPENAI_API_KEY=sk-...      (paid, high quality)", file=sys.stderr)
+    print("  OPENROUTER_API_KEY=sk-...  (paid, any model)", file=sys.stderr)
+    sys.exit(1)
+
+
+def _make_openai_providers():
+    """Create OpenAI VLM + ImageGen providers that implement PaperBanana's interfaces."""
+    from PIL import Image as PILImage
+    from paperbanana.providers.base import ImageGenProvider, VLMProvider
+    from paperbanana.core.utils import image_to_base64
+    from openai import AsyncOpenAI
+    from tenacity import retry, stop_after_attempt, wait_exponential
+
+    api_key = os.environ["OPENAI_API_KEY"]
+    client = AsyncOpenAI(api_key=api_key)
+
+    class OpenAIVLM(VLMProvider):
+        """OpenAI VLM provider using the Chat Completions API."""
+
+        @property
+        def name(self) -> str:
+            return "openai"
+
+        @property
+        def model_name(self) -> str:
+            return os.environ.get("OPENAI_VLM_MODEL", "gpt-4o")
+
+        def is_available(self) -> bool:
+            return True
+
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+        async def generate(
+            self,
+            prompt: str,
+            images: Optional[list] = None,
+            system_prompt: Optional[str] = None,
+            temperature: float = 1.0,
+            max_tokens: int = 4096,
+            response_format: Optional[str] = None,
+        ) -> str:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+
+            content = []
+            if images:
+                for img in images:
+                    b64 = image_to_base64(img)
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{b64}"},
+                    })
+            content.append({"type": "text", "text": prompt})
+            messages.append({"role": "user", "content": content})
+
+            kwargs = {
+                "model": self.model_name,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+            if response_format == "json":
+                kwargs["response_format"] = {"type": "json_object"}
+
+            resp = await client.chat.completions.create(**kwargs)
+            return resp.choices[0].message.content
+
+    class OpenAIImageGen(ImageGenProvider):
+        """OpenAI image generation using DALL-E 3 / gpt-image-1."""
+
+        @property
+        def name(self) -> str:
+            return "openai_imagen"
+
+        @property
+        def model_name(self) -> str:
+            return os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
+
+        def is_available(self) -> bool:
+            return True
+
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+        async def generate(
+            self,
+            prompt: str,
+            negative_prompt: Optional[str] = None,
+            width: int = 1024,
+            height: int = 1024,
+            seed: Optional[int] = None,
+        ) -> PILImage.Image:
+            # Map dimensions to DALL-E 3 supported sizes
+            ratio = width / height
+            if ratio > 1.3:
+                size = "1792x1024"
+            elif ratio < 0.77:
+                size = "1024x1792"
+            else:
+                size = "1024x1024"
+
+            full_prompt = prompt
+            if negative_prompt:
+                full_prompt += f"\n\nAvoid: {negative_prompt}"
+
+            resp = await client.images.generate(
+                model=self.model_name,
+                prompt=full_prompt,
+                n=1,
+                size=size,
+                response_format="b64_json",
+            )
+
+            b64_data = resp.data[0].b64_json
+            image_bytes = base64.b64decode(b64_data)
+            return PILImage.open(BytesIO(image_bytes))
+
+    return OpenAIVLM(), OpenAIImageGen()
+
+
+def _get_provider_info(provider: str) -> dict:
+    """Get display info for the selected provider."""
+    if provider == "gemini":
         return {
-            "vlm_provider": "gemini",
             "vlm_model": os.environ.get("GEMINI_VLM_MODEL", "gemini-2.0-flash"),
-            "image_provider": "google_imagen",
             "image_model": os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"),
         }
-    elif explicit == "openrouter" or (explicit is None and os.environ.get("OPENROUTER_API_KEY")):
-        if not os.environ.get("OPENROUTER_API_KEY"):
-            print("ERROR: --provider openrouter requires OPENROUTER_API_KEY", file=sys.stderr)
-            sys.exit(1)
+    elif provider == "openai":
         return {
-            "vlm_provider": "openrouter",
+            "vlm_model": os.environ.get("OPENAI_VLM_MODEL", "gpt-4o"),
+            "image_model": os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3"),
+        }
+    elif provider == "openrouter":
+        return {
             "vlm_model": os.environ.get("OPENROUTER_VLM_MODEL", "google/gemini-2.0-flash-001"),
-            "image_provider": "openrouter_imagen",
             "image_model": os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.0-flash-001"),
         }
-    else:
-        print("ERROR: No API key found.", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Set one of these in ~/.openclaw/openclaw.json → skills.entries.paperbanana.env:", file=sys.stderr)
-        print("  GOOGLE_API_KEY=AIza...     (free, recommended)", file=sys.stderr)
-        print("  OPENROUTER_API_KEY=sk-...  (paid, access to any model)", file=sys.stderr)
-        sys.exit(1)
+    return {}
 
 
-async def generate_diagram(args, provider_config: dict) -> str:
-    """Run the PaperBanana pipeline and return the output image path."""
-    from paperbanana import PaperBananaPipeline, GenerationInput, DiagramType
+def _build_pipeline(provider: str, args):
+    """Build the PaperBanana pipeline for the given provider."""
+    from paperbanana import PaperBananaPipeline
     from paperbanana.core.config import Settings
 
-    # Build output directory
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     output_dir = Path(f"/tmp/paperbanana-{timestamp}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    settings = Settings(
-        vlm_provider=provider_config["vlm_provider"],
-        vlm_model=provider_config["vlm_model"],
-        image_provider=provider_config["image_provider"],
-        image_model=provider_config["image_model"],
-        optimize_inputs=not args.no_optimize,
-        auto_refine=args.auto_refine,
-        refinement_iterations=args.iterations,
-        output_dir=str(output_dir),
-        output_format=args.format,
-        save_iterations=True,
-        save_metadata=True,
-    )
+    base_settings = {
+        "optimize_inputs": not args.no_optimize,
+        "auto_refine": args.auto_refine,
+        "refinement_iterations": args.iterations,
+        "output_dir": str(output_dir),
+        "output_format": args.format,
+        "save_iterations": True,
+        "save_metadata": True,
+    }
 
-    pipeline = PaperBananaPipeline(settings=settings)
+    if provider == "openai":
+        # Inject custom OpenAI providers directly into the pipeline
+        vlm, image_gen = _make_openai_providers()
+        settings = Settings(**base_settings)
+        return PaperBananaPipeline(settings=settings, vlm_client=vlm, image_gen_fn=image_gen)
+    elif provider == "gemini":
+        settings = Settings(
+            vlm_provider="gemini",
+            vlm_model=os.environ.get("GEMINI_VLM_MODEL", "gemini-2.0-flash"),
+            image_provider="google_imagen",
+            image_model=os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"),
+            **base_settings,
+        )
+        return PaperBananaPipeline(settings=settings)
+    elif provider == "openrouter":
+        settings = Settings(
+            vlm_provider="openrouter",
+            vlm_model=os.environ.get("OPENROUTER_VLM_MODEL", "google/gemini-2.0-flash-001"),
+            image_provider="openrouter_imagen",
+            image_model=os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.0-flash-001"),
+            **base_settings,
+        )
+        return PaperBananaPipeline(settings=settings)
+    else:
+        print(f"ERROR: Unknown provider '{provider}'", file=sys.stderr)
+        sys.exit(1)
+
+
+async def generate_diagram(args, provider: str) -> str:
+    """Run the PaperBanana pipeline and return the output image path."""
+    from paperbanana import GenerationInput, DiagramType
+
+    pipeline = _build_pipeline(provider, args)
 
     # Get source context
     if args.input:
@@ -94,13 +257,13 @@ async def generate_diagram(args, provider_config: dict) -> str:
         diagram_type=DiagramType.METHODOLOGY,
     )
 
-    # Add aspect ratio if specified
     if args.aspect:
         gen_input.aspect_ratio = args.aspect
 
-    print(f"🍌 Generating diagram with {provider_config['vlm_provider']}...")
-    print(f"   VLM: {provider_config['vlm_model']}")
-    print(f"   Image: {provider_config['image_model']}")
+    info = _get_provider_info(provider)
+    print(f"🍌 Generating diagram with {provider}...")
+    print(f"   VLM: {info['vlm_model']}")
+    print(f"   Image: {info['image_model']}")
     print(f"   Optimize: {not args.no_optimize}")
     print(f"   Iterations: {'auto' if args.auto_refine else args.iterations}")
     print()
@@ -109,40 +272,24 @@ async def generate_diagram(args, provider_config: dict) -> str:
     return result.image_path
 
 
-async def continue_run(args, provider_config: dict) -> str:
+async def continue_run(args, provider: str) -> str:
     """Continue a previous PaperBanana run with feedback."""
-    from paperbanana import PaperBananaPipeline
-    from paperbanana.core.config import Settings
+    import glob
     from paperbanana.core.resume import load_resume_state
 
-    settings = Settings(
-        vlm_provider=provider_config["vlm_provider"],
-        vlm_model=provider_config["vlm_model"],
-        image_provider=provider_config["image_provider"],
-        image_model=provider_config["image_model"],
-        save_iterations=True,
-        save_metadata=True,
-    )
+    pipeline = _build_pipeline(provider, args)
 
-    pipeline = PaperBananaPipeline(settings=settings)
-
-    # Find the run to continue
     if args.continue_run:
         run_id = args.continue_run
     else:
-        # Find latest run in /tmp/paperbanana-*
-        import glob
         runs = sorted(glob.glob("/tmp/paperbanana-*/run_*"))
         if not runs:
             print("ERROR: No previous runs found to continue.", file=sys.stderr)
-            print("Generate a diagram first, then use --continue.", file=sys.stderr)
             sys.exit(1)
         run_dir = runs[-1]
         run_id = Path(run_dir).name
 
-    # Find the outputs directory containing this run
     parent_dir = None
-    import glob
     for d in sorted(glob.glob("/tmp/paperbanana-*"), reverse=True):
         if (Path(d) / run_id).exists() or any(Path(d).iterdir()):
             parent_dir = d
@@ -181,7 +328,7 @@ def main():
     parser.add_argument("--format", "-f", default="png", choices=["png", "jpeg", "webp"], help="Output format")
 
     # Provider options
-    parser.add_argument("--provider", choices=["gemini", "openrouter"], help="Override auto-detected provider")
+    parser.add_argument("--provider", choices=["gemini", "openai", "openrouter"], help="Override auto-detected provider")
 
     # Continuation options
     parser.add_argument("--continue", dest="do_continue", action="store_true", help="Continue latest run")
@@ -191,13 +338,13 @@ def main():
     args = parser.parse_args()
 
     # Detect provider
-    provider_config = detect_provider(args.provider)
+    provider = detect_provider(args.provider)
 
     # Route to generation or continuation
     if args.do_continue or args.continue_run:
         if not args.feedback:
             print("WARNING: No --feedback provided. Continuing with additional iterations only.", file=sys.stderr)
-        image_path = asyncio.run(continue_run(args, provider_config))
+        image_path = asyncio.run(continue_run(args, provider))
     else:
         if not args.caption:
             print("ERROR: --caption is required for new diagram generation.", file=sys.stderr)
@@ -205,7 +352,7 @@ def main():
         if not args.input and not args.context:
             print("ERROR: Provide --input (file) or --context (text) for diagram generation.", file=sys.stderr)
             sys.exit(1)
-        image_path = asyncio.run(generate_diagram(args, provider_config))
+        image_path = asyncio.run(generate_diagram(args, provider))
 
     # Deliver result
     resolved = str(Path(image_path).resolve())
