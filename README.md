@@ -28,8 +28,8 @@ The full demo paper (`demo/paper.pdf`) was compiled from these figures with LaTe
 
 | Provider | Env Var | Cost | Quality |
 |----------|---------|------|---------|
-| **Google Gemini** | `GOOGLE_API_KEY` | Free | Good |
-| **OpenAI** | `OPENAI_API_KEY` | Paid | Best (gpt-5.2 + gpt-image-1.5) |
+| **Google Gemini** | `GOOGLE_API_KEY` | Free | Best |
+| **OpenAI** | `OPENAI_API_KEY` | Paid | Great (gpt-5.2 + gpt-image-1.5) |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Paid | Any model |
 
 Auto-detection priority: Gemini → OpenAI → OpenRouter. Override with `--provider`.
