@@ -41,7 +41,7 @@ Options:
 - `--iterations N` — refinement rounds (default: 3)
 - `--auto-refine` — loop until critic is satisfied (use for final quality)
 - `--aspect RATIO` — aspect ratio: `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `9:16`, `16:9`, `21:9`
-- `--provider gemini|openrouter` — override auto-detected provider
+- `--provider gemini|openai|openrouter` — override auto-detected provider
 - `--format png|jpeg|webp` — output format (default: png)
 - `--no-optimize` — disable input optimization (on by default)
 
@@ -102,7 +102,10 @@ The skill auto-installs `paperbanana` on first use via `uv` (isolated, no global
           // Option A: Google Gemini (free tier — recommended)
           GOOGLE_API_KEY: "AIza...",
 
-          // Option B: OpenRouter (paid, access to any model)
+          // Option B: OpenAI (paid, best quality)
+          // OPENAI_API_KEY: "sk-...",
+
+          // Option C: OpenRouter (paid, access to any model)
           // OPENROUTER_API_KEY: "sk-or-...",
         }
       }
@@ -111,7 +114,7 @@ The skill auto-installs `paperbanana` on first use via `uv` (isolated, no global
 }
 ```
 
-If both keys are set, Gemini is preferred (free). OpenRouter gives access to any model.
+Auto-detection priority: Gemini (free) → OpenAI → OpenRouter.
 
 ## Provider Details
 

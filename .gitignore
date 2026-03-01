@@ -1,5 +1,35 @@
-# GSD autopilot (transient files)
-.planning/autopilot.sh
-.planning/autopilot.lock
-.planning/logs/
-.planning/checkpoints/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# PaperBanana outputs (generated at runtime)
+outputs/
+/tmp/paperbanana-*/
+
+# uv cache (auto-managed)
+.venv/

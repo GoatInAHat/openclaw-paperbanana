@@ -10,7 +10,7 @@ Outputs MEDIA: lines for OpenClaw auto-attachment.
 
 Supports three providers:
   - gemini:     Free tier via GOOGLE_API_KEY
-  - openai:     Paid via OPENAI_API_KEY (gpt-4o + dall-e-3)
+  - openai:     Paid via OPENAI_API_KEY (gpt-5.2 + gpt-image-1.5)
   - openrouter: Paid via OPENROUTER_API_KEY (any model)
 """
 
