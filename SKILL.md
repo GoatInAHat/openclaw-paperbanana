@@ -11,7 +11,7 @@ description: >
   reference, (4) user asks to refine or improve a previously generated diagram.
   NOT for: analyzing existing images, general image generation (non-academic),
   or chart/graph discussions without explicit generation intent.
-metadata: {"openclaw":{"emoji":"🍌","requires":{"bins":["uv"]}}}
+metadata: {"openclaw":{"emoji":"🍌","homepage":"https://github.com/GoatInAHat/openclaw-paperbanana","primaryEnv":"GOOGLE_API_KEY","requires":{"bins":["uv"]}}}
 ---
 
 # PaperBanana — Academic Illustration Generator
@@ -89,9 +89,15 @@ uv run {baseDir}/scripts/generate.py \
 
 ## Setup
 
-The skill auto-installs `paperbanana` on first use via `uv` (isolated, no global install).
+The skill auto-installs [`paperbanana`](https://pypi.org/project/paperbanana/) on first use via `uv` (isolated, no global install). The package is published on PyPI by the [llmsresearch](https://github.com/llmsresearch/paperbanana) team.
 
-**API keys:** Configure at least one in `~/.openclaw/openclaw.json`:
+**Required API keys:** This skill requires **at least one** of the following API keys to function. Configure in `~/.openclaw/openclaw.json`:
+
+| Env Variable | Provider | Cost | Notes |
+|---|---|---|---|
+| `GOOGLE_API_KEY` | Google Gemini | Free tier available | Recommended starting point |
+| `OPENAI_API_KEY` | OpenAI | Paid | Best quality (gpt-5.2 + gpt-image-1.5) |
+| `OPENROUTER_API_KEY` | OpenRouter | Paid | Access to any model |
 
 ```json5
 {
@@ -114,12 +120,31 @@ The skill auto-installs `paperbanana` on first use via `uv` (isolated, no global
 }
 ```
 
-Auto-detection priority: Gemini (free) → OpenAI → OpenRouter.
+Auto-detection priority: Gemini (free) → OpenAI → OpenRouter. The skill will exit with a clear error if no API key is found.
 
 ## Provider Details
 
 For provider comparison, model options, and advanced configuration:
 see `{baseDir}/references/providers.md`
+
+## Privacy & Data Handling
+
+This skill sends user-provided data to **external third-party APIs** for diagram generation and evaluation:
+
+- **Text content** (context descriptions, captions, feedback) is sent to the configured LLM provider (Gemini, OpenAI, or OpenRouter) for planning and code generation.
+- **Generated images** may be sent back to the LLM provider for VLM-based evaluation and refinement.
+- **CSV/JSON data** provided for plot generation is sent to the LLM provider for Matplotlib code generation.
+
+**Do not use this skill with sensitive, confidential, or proprietary data** unless your organization's data policies permit sending that data to the configured provider. All API calls go directly to the provider's endpoints — no intermediate servers are involved.
+
+API keys are injected by OpenClaw from your local config (`~/.openclaw/openclaw.json`) and are never logged or transmitted beyond the provider's API.
+
+## Dependencies & Provenance
+
+- **PyPI package:** [`paperbanana`](https://pypi.org/project/paperbanana/) (≥0.1.2, installed automatically via `uv`)
+- **Source:** [llmsresearch/paperbanana](https://github.com/llmsresearch/paperbanana) on GitHub
+- **Skill source:** [GoatInAHat/openclaw-paperbanana](https://github.com/GoatInAHat/openclaw-paperbanana) on GitHub
+- **Transitive deps:** `google-genai`, `openai`, `matplotlib`, `Pillow`, and others (installed in an isolated `uv` environment, not globally)
 
 ## Behavior Notes
 
