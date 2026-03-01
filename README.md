@@ -28,7 +28,7 @@ The full demo paper (`demo/paper.pdf`) was compiled from these figures with LaTe
 
 | Provider | Env Var | Cost | Quality |
 |----------|---------|------|---------|
-| **Google Gemini** | `GOOGLE_API_KEY` | Free | Best |
+| **Google Gemini** | `GOOGLE_API_KEY` | Paid/Free Tier | Best |
 | **OpenAI** | `OPENAI_API_KEY` | Paid | Great (gpt-5.2 + gpt-image-1.5) |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Paid | Any model |
 
