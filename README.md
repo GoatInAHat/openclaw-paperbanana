@@ -227,7 +227,6 @@ paperbanana/
 
 - [PaperBanana](https://github.com/llmsresearch/paperbanana) — The underlying multi-agent framework
 - [OpenClaw](https://github.com/openclaw/openclaw) — The agent framework this skill integrates with
-- Built by [Bennett Vernon](https://github.com/GoatInAHat) with Berry 🍓
 
 ## License
 
