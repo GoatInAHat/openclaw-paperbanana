@@ -223,11 +223,6 @@ paperbanana/
 - **Python** ≥ 3.10
 - At least one API key (Gemini is free)
 
-## Credits
-
-- [PaperBanana](https://github.com/llmsresearch/paperbanana) — The underlying multi-agent framework
-- [OpenClaw](https://github.com/openclaw/openclaw) — The agent framework this skill integrates with
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
