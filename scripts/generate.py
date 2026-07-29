@@ -25,6 +25,21 @@ from pathlib import Path
 from typing import Optional
 
 
+def _resolve_dimensions(width, height, aspect_ratio=None):
+    """Apply a pipeline-provided aspect ratio while preserving provider defaults."""
+    if not aspect_ratio:
+        return width, height
+
+    try:
+        ratio_width, ratio_height = (float(part) for part in aspect_ratio.split(":", 1))
+        if ratio_width <= 0 or ratio_height <= 0:
+            raise ValueError
+    except (AttributeError, TypeError, ValueError):
+        return width, height
+
+    return ratio_width, ratio_height
+
+
 def detect_provider(explicit: str | None = None) -> str:
     """Auto-detect provider from env vars, or use explicit override. Returns provider name."""
     if explicit:
@@ -145,7 +160,10 @@ def _make_openai_providers():
             width: int = 1024,
             height: int = 1024,
             seed: Optional[int] = None,
+            aspect_ratio: Optional[str] = None,
+            **kwargs,
         ) -> PILImage.Image:
+            width, height = _resolve_dimensions(width, height, aspect_ratio)
             full_prompt = prompt
             if negative_prompt:
                 full_prompt += f"\n\nAvoid: {negative_prompt}"

@@ -20,6 +20,21 @@ from pathlib import Path
 from typing import Optional
 
 
+def _resolve_dimensions(width, height, aspect_ratio=None):
+    """Apply a pipeline-provided aspect ratio while preserving provider defaults."""
+    if not aspect_ratio:
+        return width, height
+
+    try:
+        ratio_width, ratio_height = (float(part) for part in aspect_ratio.split(":", 1))
+        if ratio_width <= 0 or ratio_height <= 0:
+            raise ValueError
+    except (AttributeError, TypeError, ValueError):
+        return width, height
+
+    return ratio_width, ratio_height
+
+
 def detect_provider(explicit: str | None = None) -> str:
     """Auto-detect provider from env vars."""
     if explicit:
@@ -102,7 +117,9 @@ def _make_openai_providers():
             return True
 
         @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
-        async def generate(self, prompt, negative_prompt=None, width=1024, height=1024, seed=None):
+        async def generate(self, prompt, negative_prompt=None, width=1024, height=1024,
+                           seed=None, aspect_ratio=None, **kwargs):
+            width, height = _resolve_dimensions(width, height, aspect_ratio)
             full_prompt = prompt
             if negative_prompt:
                 full_prompt += f"\n\nAvoid: {negative_prompt}"
