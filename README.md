@@ -18,7 +18,7 @@ The full demo paper (`demo/paper.pdf`) was compiled from these figures with LaTe
 ## Features
 
 - **📐 Diagram Generation** — Methodology figures, architecture diagrams, pipeline illustrations from text descriptions
-- **📊 Plot Generation** — Bar charts, line plots, scatter plots from CSV/JSON data using Matplotlib code generation
+- **📊 Plot Generation** — Bar charts, line plots, scatter plots from CSV/JSON data using constrained Matplotlib code generation
 - **🔄 Iterative Refinement** — AI critic evaluates each iteration and provides feedback for improvement
 - **📝 Evaluation** — Compare generated diagrams against human references (Faithfulness, Readability, Conciseness, Aesthetics)
 - **🔧 Run Continuation** — Refine previous generations with natural language feedback
@@ -73,11 +73,7 @@ Add to `~/.openclaw/openclaw.json`:
 
 ### 3. Verify `uv` is installed
 
-The skill uses [`uv`](https://docs.astral.sh/uv/) for zero-config dependency management. Install if needed:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+The skill uses [`uv`](https://docs.astral.sh/uv/) for zero-config dependency management. Follow the [official installation options](https://docs.astral.sh/uv/getting-started/installation/) for your platform (for example, `brew install uv` or `pipx install uv`).
 
 That's it. No `pip install`, no virtual environments — `uv` handles everything automatically on first run.
 
@@ -166,7 +162,7 @@ Input Text → Retriever → Planner → Stylist → Visualizer → Critic
 5. **Critic** — Evaluates the output and suggests improvements for the next iteration
 
 For **methodology diagrams**, the Visualizer uses image generation models (DALL-E 3, gpt-image-1.5, or Gemini).
-For **statistical plots**, the Visualizer generates and executes Matplotlib code — producing true vector graphics.
+For **statistical plots**, the Visualizer generates and executes Matplotlib code — producing true vector graphics. Before execution, this wrapper validates the generated Python against a plotting-focused AST allowlist, removes API keys from the child environment, uses an isolated temporary working directory, and applies CPU, memory, file-size, and file-descriptor limits on POSIX. This is defense in depth, not a kernel security boundary; only plot non-sensitive data and run OpenClaw in its normal sandbox.
 
 ## Model Configuration
 
@@ -203,6 +199,7 @@ paperbanana/
 ├── scripts/
 │   ├── generate.py       # Diagram generation + run continuation
 │   ├── plot.py           # Statistical plot generation
+│   ├── safe_plot.py      # Constrained generated-code executor
 │   └── evaluate.py       # Diagram quality evaluation
 ├── references/
 │   └── providers.md      # Provider comparison + configuration reference
@@ -213,6 +210,7 @@ paperbanana/
 │   ├── comparison.png    # Generated bar chart
 │   └── convergence.png   # Generated line plot
 ├── LICENSE               # MIT
+├── SECURITY.md           # Vulnerability reporting and trust boundaries
 └── README.md             # This file
 ```
 

@@ -139,9 +139,18 @@ This skill sends user-provided data to **external third-party APIs** for diagram
 
 API keys are injected by OpenClaw from your local config (`~/.openclaw/openclaw.json`) and are never logged or transmitted beyond the provider's API.
 
+## Generated-Code Safety
+
+Plot generation executes model-produced Matplotlib code. The wrapper at
+`{baseDir}/scripts/safe_plot.py` validates that code against a plotting-focused AST
+allowlist, strips provider credentials from the child environment, runs it from an
+isolated temporary directory, and applies resource limits on POSIX. These controls
+are defense in depth, not a kernel security boundary. Keep OpenClaw's normal sandbox
+enabled and do not plot sensitive data.
+
 ## Dependencies & Provenance
 
-- **PyPI package:** [`paperbanana`](https://pypi.org/project/paperbanana/) (≥0.1.2, installed automatically via `uv`)
+- **PyPI package:** [`paperbanana`](https://pypi.org/project/paperbanana/) (≥0.3.0,<0.4, installed automatically via `uv`)
 - **Source:** [llmsresearch/paperbanana](https://github.com/llmsresearch/paperbanana) on GitHub
 - **Skill source:** [GoatInAHat/openclaw-paperbanana](https://github.com/GoatInAHat/openclaw-paperbanana) on GitHub
 - **Transitive deps:** `google-genai`, `openai`, `matplotlib`, `Pillow`, and others (installed in an isolated `uv` environment, not globally)

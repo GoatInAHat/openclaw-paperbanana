@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["paperbanana[all-providers]>=0.1.2", "openai>=1.0"]
+# dependencies = ["paperbanana[all-providers]>=0.3.0,<0.4", "openai>=1.0,<3"]
 # ///
 """
 PaperBanana diagram generator for OpenClaw.
@@ -22,7 +22,6 @@ import sys
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 
 def detect_provider(explicit: str | None = None) -> str:
@@ -48,7 +47,7 @@ def detect_provider(explicit: str | None = None) -> str:
         return "openrouter"
 
     print("ERROR: No API key found.", file=sys.stderr)
-    print("", file=sys.stderr)
+    print(file=sys.stderr)
     print("Set one of these in ~/.openclaw/openclaw.json → skills.entries.paperbanana.env:", file=sys.stderr)
     print("  GOOGLE_API_KEY=AIza...     (free, recommended)", file=sys.stderr)
     print("  OPENAI_API_KEY=sk-...      (paid, high quality)", file=sys.stderr)
@@ -58,10 +57,10 @@ def detect_provider(explicit: str | None = None) -> str:
 
 def _make_openai_providers():
     """Create OpenAI VLM + ImageGen providers that implement PaperBanana's interfaces."""
-    from PIL import Image as PILImage
-    from paperbanana.providers.base import ImageGenProvider, VLMProvider
-    from paperbanana.core.utils import image_to_base64
     from openai import AsyncOpenAI
+    from paperbanana.core.utils import image_to_base64
+    from paperbanana.providers.base import ImageGenProvider, VLMProvider
+    from PIL import Image as PILImage
     from tenacity import retry, stop_after_attempt, wait_exponential
 
     api_key = os.environ["OPENAI_API_KEY"]
@@ -85,11 +84,11 @@ def _make_openai_providers():
         async def generate(
             self,
             prompt: str,
-            images: Optional[list] = None,
-            system_prompt: Optional[str] = None,
+            images: list | None = None,
+            system_prompt: str | None = None,
             temperature: float = 1.0,
             max_tokens: int = 4096,
-            response_format: Optional[str] = None,
+            response_format: str | None = None,
         ) -> str:
             messages = []
             if system_prompt:
@@ -141,10 +140,10 @@ def _make_openai_providers():
         async def generate(
             self,
             prompt: str,
-            negative_prompt: Optional[str] = None,
+            negative_prompt: str | None = None,
             width: int = 1024,
             height: int = 1024,
-            seed: Optional[int] = None,
+            seed: int | None = None,
         ) -> PILImage.Image:
             full_prompt = prompt
             if negative_prompt:
@@ -269,7 +268,7 @@ def _build_pipeline(provider: str, args):
 
 async def generate_diagram(args, provider: str) -> str:
     """Run the PaperBanana pipeline and return the output image path."""
-    from paperbanana import GenerationInput, DiagramType
+    from paperbanana import DiagramType, GenerationInput
 
     pipeline = _build_pipeline(provider, args)
 
@@ -306,6 +305,7 @@ async def generate_diagram(args, provider: str) -> str:
 async def continue_run(args, provider: str) -> str:
     """Continue a previous PaperBanana run with feedback."""
     import glob
+
     from paperbanana.core.resume import load_resume_state
 
     pipeline = _build_pipeline(provider, args)

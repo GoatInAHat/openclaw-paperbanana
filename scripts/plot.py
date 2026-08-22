@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["paperbanana[all-providers]>=0.1.2", "openai>=1.0"]
+# dependencies = ["paperbanana[all-providers]>=0.3.0,<0.4", "openai>=1.0,<3"]
 # ///
 """
 PaperBanana statistical plot generator for OpenClaw.
@@ -17,7 +17,6 @@ import sys
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 
 def detect_provider(explicit: str | None = None) -> str:
@@ -44,10 +43,10 @@ def detect_provider(explicit: str | None = None) -> str:
 
 def _make_openai_providers():
     """Create OpenAI VLM + ImageGen providers."""
-    from PIL import Image as PILImage
-    from paperbanana.providers.base import ImageGenProvider, VLMProvider
-    from paperbanana.core.utils import image_to_base64
     from openai import AsyncOpenAI
+    from paperbanana.core.utils import image_to_base64
+    from paperbanana.providers.base import ImageGenProvider, VLMProvider
+    from PIL import Image as PILImage
     from tenacity import retry, stop_after_attempt, wait_exponential
 
     api_key = os.environ["OPENAI_API_KEY"]
@@ -178,7 +177,10 @@ def _build_pipeline(provider: str, args):
 
 async def generate_plot(args, provider: str) -> str:
     """Generate a statistical plot from data."""
-    from paperbanana import GenerationInput, DiagramType
+    from paperbanana import DiagramType, GenerationInput
+    from safe_plot import install_safe_plot_executor
+
+    install_safe_plot_executor()
 
     pipeline = _build_pipeline(provider, args)
 

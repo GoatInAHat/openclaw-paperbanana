@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["paperbanana[all-providers]>=0.1.2", "openai>=1.0"]
+# dependencies = ["paperbanana[all-providers]>=0.3.0,<0.4", "openai>=1.0,<3"]
 # ///
 """
 PaperBanana diagram evaluator for OpenClaw.
@@ -14,7 +14,6 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def detect_provider(explicit: str | None = None) -> str:
@@ -41,9 +40,9 @@ def detect_provider(explicit: str | None = None) -> str:
 
 def _make_openai_vlm():
     """Create an OpenAI VLM provider for evaluation."""
-    from paperbanana.providers.base import VLMProvider
-    from paperbanana.core.utils import image_to_base64
     from openai import AsyncOpenAI
+    from paperbanana.core.utils import image_to_base64
+    from paperbanana.providers.base import VLMProvider
     from tenacity import retry, stop_after_attempt, wait_exponential
 
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
